@@ -1,0 +1,253 @@
+
+<!DOCTYPE html>
+<html lang="pl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SX.bet Ladder – Match Odds (PWA)</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0d1220">
+  <style>
+    :root{
+      --bg:#0b1020;--panel:#0e1530;--muted:#94a3b8;--text:#e5e7eb;--accent:#7c3aed;
+      --line:#1f2a44;--green:#22c55e;--red:#ef4444;--back:#1e3a8a;--lay:#7a1b5c;
+      --header:#0a1022;--chip:#0f1a38;
+    }
+    [data-theme="light"]{
+      --bg:#f7f8fb;--panel:#ffffff;--muted:#64748b;--text:#0f172a;--accent:#7c3aed;
+      --line:#e2e8f0;--green:#16a34a;--red:#dc2626;--back:#2563eb;--lay:#be185d;
+      --header:#fafafa;--chip:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{position:sticky;top:0;z-index:20;background:var(--header);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:12px}
+    header h1{font-size:16px;margin:0;font-weight:600}
+    .spacer{flex:1}
+    .toggle{cursor:pointer;border:1px solid var(--line);padding:6px 10px;border-radius:8px;background:var(--panel)}
+    .layout{display:grid;grid-template-columns: 320px 1fr; gap:14px; padding:14px; height:calc(100% - 54px)}
+    aside{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0}
+    .aside-head{padding:12px 12px 8px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+    .aside-head input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--text)}
+    .aside-head button{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--text);cursor:pointer}
+    .markets{overflow:auto;padding:8px}
+    .market{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:linear-gradient(180deg, rgba(124,58,237,0.08), transparent);cursor:pointer}
+    .market small{color:var(--muted)}
+    .active{outline:2px solid var(--accent)}
+    main{display:flex;flex-direction:column;min-width:0}
+    .controls{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;flex-wrap:wrap}
+    .controls label{display:flex;gap:8px;align-items:center;background:var(--chip);padding:6px 8px;border-radius:8px;border:1px solid var(--line)}
+    .controls input{width:90px;background:transparent;border:0;color:var(--text);outline:none}
+    .controls .btn{padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--chip);cursor:pointer}
+    .ladder-wrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-height:300px}
+    table{width:100%;border-collapse:collapse}
+    thead th{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:10px;font-weight:600}
+    tbody td{border-top:1px solid var(--line);padding:8px;text-align:center}
+    .cell-back{background:linear-gradient(90deg, rgba(37,99,235,0.25), transparent);}
+    .cell-lay{background:linear-gradient(270deg, rgba(190,24,93,0.25), transparent);}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:var(--chip)}
+    .profit{color:var(--green);font-weight:600}
+    .loss{color:var(--red);font-weight:600}
+    .footer{margin-top:12px;display:flex;gap:10px;align-items:center;color:var(--muted);flex-wrap:wrap}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,Monaco,monospace;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;max-height:220px;overflow:auto}
+    @media (max-width: 980px){ .layout{grid-template-columns:1fr} aside{order:2} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SX.bet – Ladder (Match Odds)</h1>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="toggle" title="Przełącz motyw">🌙/☀️</button>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div class="aside-head">
+        <input id="search" placeholder="Szukaj rynku..." />
+        <button id="loadBtn">Załaduj rynki</button>
+      </div>
+      <div id="markets" class="markets"></div>
+    </aside>
+
+    <main>
+      <div class="controls">
+        <label>Stawka <input id="stake" type="number" step="0.01" value="10.00"></label>
+        <label>Prowizja % <input id="commission" type="number" step="0.1" value="2.0"></label>
+        <span class="pill">Wybrany rynek: <b id="marketName">—</b></span>
+        <button class="btn" id="simulateBack">Symuluj Back</button>
+        <button class="btn" id="simulateLay">Symuluj Lay</button>
+      </div>
+
+      <div class="ladder-wrap">
+        <table id="ladder">
+          <thead>
+            <tr>
+              <th class="cell-back">Back</th>
+              <th>Kurs</th>
+              <th class="cell-lay">Lay</th>
+              <th>Hedge (suma)</th>
+            </tr>
+          </thead>
+          <tbody id="ladderBody"></tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        <span class="pill">Status API: <b id="apiStatus">—</b></span>
+        <span class="pill">Łącznie zakładów: <b id="betsCount">0</b></span>
+      </div>
+
+      <div class="debug" id="debug"></div>
+    </main>
+  </div>
+
+  <script>
+    // THEME
+    const themeBtn = document.getElementById('themeToggle');
+    const root = document.documentElement;
+    themeBtn.addEventListener('click', () => {
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    // LADDER GENERATOR (Twoja ulubiona skala)
+    const odds = [];
+    for (let o=1.01; o<=2.00+1e-9; o += 0.01) odds.push(+o.toFixed(2));
+    for (let o=2.02; o<=3.00+1e-9; o += 0.02) odds.push(+o.toFixed(2));
+    for (let o=3.05; o<=4.00+1e-9; o += 0.05) odds.push(+o.toFixed(2));
+    for (let o=4.10; o<=6.00+1e-9; o += 0.10) odds.push(+o.toFixed(2));
+    for (let o=6.20; o<=10.00+1e-9; o += 0.20) odds.push(+o.toFixed(2));
+    for (let o=10.50; o<=20.00+1e-9; o += 0.50) odds.push(+o.toFixed(2));
+
+    const ladderBody = document.getElementById('ladderBody');
+    function renderLadder(){
+      ladderBody.innerHTML = '';
+      for (let i=0;i<odds.length;i++){
+        const o = odds[i];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="cell-back">${(o-1).toFixed(2)}</td>
+          <td>${o.toFixed(2)}</td>
+          <td class="cell-lay">${(o-1).toFixed(2)}</td>
+          <td class="hedge">—</td>`;
+        ladderBody.appendChild(tr);
+      }
+    }
+    renderLadder();
+
+    // SIMPLE HEDGE SIM FOR A SINGLE BET (suma po całej drabince)
+    const stakeEl = document.getElementById('stake');
+    const commEl  = document.getElementById('commission');
+    function simulate(type){
+      const stake = parseFloat(stakeEl.value || '0');
+      const c = parseFloat(commEl.value || '0')/100;
+      document.querySelectorAll('#ladderBody tr').forEach((row, idx)=>{
+        const o = odds[idx];
+        const cell = row.querySelector('.hedge');
+        if(type==='back'){
+          const profit = stake*(o-1)*(1-c);
+          const loss = -stake;
+          const v = profit >= 0 ? profit : loss;
+          cell.textContent = v.toFixed(2);
+          cell.className = 'hedge ' + (v>=0?'profit':'loss');
+        }else{
+          const liability = stake*(o-1);
+          const profit = stake*(1-c);
+          const v = profit - liability;
+          cell.textContent = v.toFixed(2);
+          cell.className = 'hedge ' + (v>=0?'profit':'loss');
+        }
+      });
+    }
+    document.getElementById('simulateBack').onclick = ()=>simulate('back');
+    document.getElementById('simulateLay').onclick  = ()=>simulate('lay');
+
+    // SX.bet API – MARKETS (Match Odds)
+    const marketsBox = document.getElementById('markets');
+    const apiStatus = document.getElementById('apiStatus');
+    const debug = document.getElementById('debug');
+    const marketNameEl = document.getElementById('marketName');
+    const loadBtn = document.getElementById('loadBtn');
+    const searchEl = document.getElementById('search');
+
+    async function fetchJSON(url){
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!res.ok) throw new Error('HTTP '+res.status+' '+res.statusText);
+      return res.json();
+    }
+
+    async function loadMarkets(){
+      apiStatus.textContent = 'Ładowanie…';
+      debug.textContent = '';
+      marketsBox.innerHTML = '';
+      const urls = [
+        'https://api.sx.bet/markets?type=MATCH_ODDS',
+        'https://api.sx.bet/markets',
+      ];
+      let data = null, lastErr = null;
+      for (const u of urls){
+        try{
+          data = await fetchJSON(u);
+          debug.textContent += 'OK: '+u+'\n';
+          break;
+        }catch(e){
+          lastErr = e;
+          debug.textContent += 'ERR: '+u+' → '+e.message+'\n';
+        }
+      }
+      if(!data){
+        apiStatus.textContent = 'Błąd API';
+        return;
+      }
+      apiStatus.textContent = 'Połączono';
+
+      // Heurystyczna filtracja: tylko rynki z nazwą zawierającą "Match Odds"
+      let items = Array.isArray(data) ? data : (data.items || data.markets || []);
+      items = items.filter(m=>{
+        const name = (m.name||m.marketName||'').toLowerCase();
+        return name.includes('match odds') || (m.type||'').toUpperCase()==='MATCH_ODDS';
+      });
+
+      // render listy + wyszukiwarka
+      const q = (searchEl.value||'').toLowerCase();
+      items = items.filter(m=> JSON.stringify(m).toLowerCase().includes(q));
+
+      if(items.length===0){
+        marketsBox.innerHTML = '<div class="market">Brak rynków Match Odds (spróbuj później)</div>';
+        return;
+      }
+
+      items.slice(0,200).forEach((m,i)=>{
+        const el = document.createElement('div');
+        const title = m.name || m.marketName || m.eventName || ('Rynek '+(m.id||''));
+        const comp = m.competition || m.league || m.sport || '';
+        el.className = 'market';
+        el.innerHTML = `<b>${title}</b><br><small>${comp ? comp+' • ' : ''}${m.id || m.marketId || ''}</small>`;
+        el.onclick = ()=> selectMarket(m, el);
+        marketsBox.appendChild(el);
+      });
+    }
+
+    function selectMarket(market, node){
+      document.querySelectorAll('.market').forEach(n=>n.classList.remove('active'));
+      node.classList.add('active');
+      const title = market.name || market.marketName || market.eventName || 'Wybrany rynek';
+      marketNameEl.textContent = title;
+      // Debug – pokaż surowe dane rynku
+      debug.textContent = 'Wybrany rynek (raw)\n' + JSON.stringify(market,null,2);
+      // TODO: tutaj można podpiąć pobieranie stawek/odds dla market.id jeśli API udostępnia osobny endpoint
+    }
+
+    loadBtn.addEventListener('click', loadMarkets);
+    searchEl.addEventListener('input', loadMarkets);
+
+    // PWA
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', ()=>{
+        navigator.serviceWorker.register('./sw.js').catch(err=>{
+          console.warn('SW register failed', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
